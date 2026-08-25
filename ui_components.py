@@ -1,6 +1,23 @@
 import streamlit as st
 from datetime import date
 
+from classifier import is_safe_url
+
+# Characters that would let a scraped job title or company name inject markdown
+# into the page: links, emphasis, code spans and raw HTML angle brackets. Job
+# text is written by third parties, so it is escaped before rendering.
+MARKDOWN_SPECIALS = "`*_[]()#!|<>" + chr(92)
+
+def escape_markdown(value) -> str:
+    """Neutralises markdown syntax in untrusted scraped text."""
+    text = str(value if value is not None else "")
+    out = []
+    for character in text:
+        if character in MARKDOWN_SPECIALS:
+            out.append(chr(92))
+        out.append(character)
+    return "".join(out)
+
 def format_countdown(deadline_date):
     """
     Calculates days remaining from today and returns a formatted string.
@@ -61,22 +78,22 @@ def render_opportunity_card(row: dict):
     Renders a clean, styled Streamlit card for a given opportunity row.
     """
     with st.container(border=True):
-        st.markdown(f"### **{row['role_title']}**")
-        st.markdown(f"#### {row['company_name']}")
+        st.markdown(f"### **{escape_markdown(row['role_title'])}**")
+        st.markdown(f"#### {escape_markdown(row['company_name'])}")
         
         # Domain and Type as badges/pills
         col1, col2, col3 = st.columns([1, 1, 1])
         with col1:
-            st.caption(f"🏢 {row['domain']}")
+            st.caption(f"🏢 {escape_markdown(row['domain'])}")
         with col2:
-            st.caption(f"🎓 {row['opportunity_type']}")
+            st.caption(f"🎓 {escape_markdown(row['opportunity_type'])}")
         with col3:
             flag = "🌐" if row.get('location_type') == 'Remote' else "🇮🇳"
-            st.caption(f"{flag} {format_location(row)}")
+            st.caption(f"{flag} {escape_markdown(format_location(row))}")
             
         source = row.get('source')
         if source:
-            st.caption(f"via {source}")
+            st.caption(f"via {escape_markdown(source)}")
 
         st.divider()
         
@@ -84,10 +101,15 @@ def render_opportunity_card(row: dict):
         st.markdown(f"**{format_countdown(row['application_deadline'])}**")
         program_start = row.get('program_start_date')
         if program_start and str(program_start).strip() not in ("None", "null", ""):
-            st.caption(f"🚀 Program Starts: {program_start}")
+            st.caption(f"🚀 Program Starts: {escape_markdown(program_start)}")
         
-        # Apply button aligned at the bottom
-        st.link_button("Apply Now ↗", url=row['apply_url'])
+        # Apply button aligned at the bottom. The URL comes from a third-party
+        # listing, so anything that is not a plain http(s) link is not rendered.
+        apply_url = row.get('apply_url')
+        if is_safe_url(apply_url):
+            st.link_button("Apply Now ↗", url=apply_url)
+        else:
+            st.caption("⚠️ Apply link unavailable for this listing.")
 
 def render_empty_state(message: str):
     """

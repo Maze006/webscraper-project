@@ -7,7 +7,7 @@ keeps existing rows.
 import requests
 
 from database import get_db_connection, init_db
-from classifier import classify_location
+from classifier import classify_location, is_safe_url
 from sources import collect_all, summarise
 
 def run():
@@ -26,6 +26,11 @@ def run():
     if not all_roles:
         print("No roles found across any source.")
         return
+
+    unsafe = [r for r in all_roles if not is_safe_url(r.get('apply_url'))]
+    if unsafe:
+        print(f"[SECURITY] Dropped {len(unsafe)} listings with a non-http(s) apply link.")
+    all_roles = [r for r in all_roles if is_safe_url(r.get('apply_url'))]
 
     # Final geography gate: India, or fully remote when the role is outside India.
     rejected = [r for r in all_roles if classify_location(r.get('location')) is None]

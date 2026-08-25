@@ -127,6 +127,22 @@ STUDENT_KEYWORDS = [
 SENIORITY_RE = _compile_terms(SENIORITY_EXCLUSIONS)
 STUDENT_RE = _compile_terms(STUDENT_KEYWORDS)
 
+# ---------------------------------------------------------------------------
+# Link safety
+# ---------------------------------------------------------------------------
+
+# Job listings are written by third parties (anyone can post on Internshala,
+# Unstop or a Greenhouse board), so an apply link is untrusted input. Only
+# ordinary web URLs are ever stored or rendered: a "javascript:" or "data:"
+# URL reaching the Apply button would execute in the visitor's browser.
+SAFE_URL_SCHEMES = ("http://", "https://")
+
+def is_safe_url(url) -> bool:
+    """True only for a plain http(s) URL."""
+    if not url or not isinstance(url, str):
+        return False
+    return url.strip().lower().startswith(SAFE_URL_SCHEMES)
+
 def is_senior_role(job_title: str) -> bool:
     """
     True when a title is a senior / full-time / recruiting role. Internship-only
@@ -226,6 +242,17 @@ if __name__ == '__main__':
     assert is_senior_role("Senior Data Analyst") == True
     assert is_senior_role("Campus Recruiter") == True
     assert is_senior_role("Android App Development") == False
+
+    print("\nTesting is_safe_url()...")
+    assert is_safe_url("https://internshala.com/internship/detail/x") == True
+    assert is_safe_url("http://example.com/job") == True
+    assert is_safe_url("javascript:alert(1)") == False
+    assert is_safe_url("JavaScript:alert(1)") == False
+    assert is_safe_url("data:text/html,<script>alert(1)</script>") == False
+    assert is_safe_url("  javascript:alert(1)") == False
+    assert is_safe_url("") == False
+    assert is_safe_url(None) == False
+    print("[PASS] Link safety tests passed.")
     
     print("[PASS] Internship gate tests passed.")
 

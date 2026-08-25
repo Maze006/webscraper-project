@@ -5,13 +5,18 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 
 from database import get_db_connection, init_db
 from sources import collect_all, summarise
-from classifier import classify_location
+from classifier import classify_location, is_safe_url
 
 def upsert_opportunities(opportunities_list):
     """
     Inserts new opportunities into the database, or updates existing ones based on apply_url.
     Returns the number of rows inserted and updated.
     """
+    if not opportunities_list:
+        return 0, 0
+
+    # Reject any listing whose apply link is not a plain http(s) URL.
+    opportunities_list = [o for o in opportunities_list if is_safe_url(o.get('apply_url'))]
     if not opportunities_list:
         return 0, 0
 

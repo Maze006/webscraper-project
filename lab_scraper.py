@@ -6,7 +6,9 @@ from datetime import date, timedelta
 from pydantic import BaseModel
 from google import genai
 from google.genai import types
-from classifier import classify_location
+from urllib.parse import urlparse
+
+from classifier import classify_location, is_safe_url
 
 class LabOpportunity(BaseModel):
     role_title: str
@@ -92,7 +94,20 @@ def parse_lab_page(url: str, company_name: str, domain: str = 'Research Lab'):
             print(f"Skipping '{company_name}': location '{location_text}' is neither in India nor remote.")
             return None
 
-        # 6. Format to match our DB schema
+        # 6. The page text above is untrusted and is fed straight to the model,
+        # so a hostile page can try to steer the extracted fields (prompt
+        # injection). The apply link is therefore only accepted when it is a
+        # plain http(s) URL on the same host as the page being scraped;
+        # anything else falls back to the source URL itself.
+        extracted_url = extracted_data.get('apply_url', url)
+        if not is_safe_url(extracted_url):
+            print(f"Rejected unsafe apply link for '{company_name}': {extracted_url!r}")
+            extracted_url = url
+        elif urlparse(extracted_url).netloc.lower() != urlparse(url).netloc.lower():
+            print(f"Rejected off-site apply link for '{company_name}': {extracted_url!r}")
+            extracted_url = url
+
+        # 7. Format to match our DB schema
         result_dict = {
             'company_name': company_name,
             'role_title': extracted_data.get('role_title', 'Research Fellow'),
@@ -104,7 +119,7 @@ def parse_lab_page(url: str, company_name: str, domain: str = 'Research Lab'):
             'location': location_text,
             'location_type': location_type,
             'source': 'Research Lab',
-            'apply_url': extracted_data.get('apply_url', url)
+            'apply_url': extracted_url
         }
         
         return result_dict

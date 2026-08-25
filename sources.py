@@ -8,6 +8,7 @@ geography gates internally; collect_all only aggregates and reports.
 
 import os
 
+from classifier import is_safe_url
 from config import (
     ALL_GREENHOUSE_TARGETS, LEVER_TOKENS,
     INTERNSHALA_CATEGORIES, INTERNSHALA_MAX_PAGES,
@@ -80,6 +81,15 @@ def collect_all(verbose=True, include_labs=True):
                 _run(f"Lab/{name}", fetch_lab, collected, verbose)
         elif verbose:
             print("\n--- Research labs skipped (GEMINI_API_KEY not set) ---")
+
+    # Apply links come from third-party listings. Anything that is not a plain
+    # http(s) URL is dropped here so it can never reach the database or the
+    # Apply button in the UI.
+    unsafe = [r for r in collected if not is_safe_url(r.get('apply_url'))]
+    if unsafe:
+        if verbose:
+            print(f"\n[SECURITY] Dropped {len(unsafe)} listings with a non-http(s) apply link.")
+        collected = [r for r in collected if is_safe_url(r.get('apply_url'))]
 
     return collected
 
